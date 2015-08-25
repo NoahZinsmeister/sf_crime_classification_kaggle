@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import make_scorer, log_loss
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.grid_search import GridSearchCV
-from sklearn.preprocessing import LabelBinarizer
+from sklearn.preprocessing import label_binarize
 
 if __name__ == "__main__":
     # create a matrix of features (X) and a vector of class labels (y)
@@ -20,25 +20,24 @@ if __name__ == "__main__":
             if i == 0:
                 pass
             else:
-                if i < 101:
-                    date = re.search("([0-9]{4})-([0-9]{2})-([0-9]{2})",
-                                     row[0]).groups()
-                    # date is of the form [year, month, day]
-                    date = [int(x) for x in date]
-                    time = re.search("([0-9]{2}):([0-9]{2}):([0-9]{2})",
-                                     row[0]).groups()
-                    # time is of the form [hour, minute, second]
-                    time = [int(x) for x in time]
-                    category_string = row[1]
-                    dayofweek_string = row[3]
-                    pddistrict_string = row[4]
-                    longitude = float(row[7])
-                    latitude = float(row[8])
-                    X_row = date + time + [longitude, latitude, \
-                        dayofweek_string, pddistrict_string]
-                    y_label = category_string
-                    X.append(X_row)
-                    y.append(y_label)
+                date = re.search("([0-9]{4})-([0-9]{2})-([0-9]{2})",
+                                 row[0]).groups()
+                # date is of the form [year, month, day]
+                date = [int(x) for x in date]
+                time = re.search("([0-9]{2}):([0-9]{2}):([0-9]{2})",
+                                 row[0]).groups()
+                # time is of the form [hour, minute, second]
+                time = [int(x) for x in time]
+                category_string = row[1]
+                dayofweek_string = row[3]
+                pddistrict_string = row[4]
+                longitude = float(row[7])
+                latitude = float(row[8])
+                X_row = date + time + [longitude, latitude, \
+                    dayofweek_string, pddistrict_string]
+                y_label = category_string
+                X.append(X_row)
+                y.append(y_label)
 
     # one-hot encoding for dayofweek and pddistrict vars
     dayofweek_set = set()
@@ -67,22 +66,21 @@ if __name__ == "__main__":
     num_unique_category = len(category_dict)
     for i, label in enumerate(y):
         y[i] = category_dict[label]
-    y = LabelBinarizer().fit_transform(y)
+    #y = label_binarize(y, classes = list(range(num_unique_category)))
 
     # ranges for cross validation parameters
     #n_estimators_range = [i for i in range(10,331,40)]
     #max_features_range = [i for i in range(2,11,2)]
-    n_estimators_range = [i for i in range(10,20,40)]
-    max_features_range = [i for i in range(2,3,2)]
+    n_estimators_range = [i for i in range(20,22,40)]
+    max_features_range = [i for i in range(3,5,2)]
 
     # does CV and pickles the final model trained with best parameters
     param_grid = {'n_estimators': n_estimators_range, 'max_features':
                   max_features_range}
-    rfc = RandomForestClassifier(random_state = 1, n_jobs = -1)
-    clf = GridSearchCV(rfc, param_grid = param_grid, scoring = make_scorer(log_loss, greater_is_better = False),
+    rfc = RandomForestClassifier(random_state = 2, n_jobs = -1)
+    clf = GridSearchCV(rfc, param_grid = param_grid, scoring = make_scorer(log_loss, greater_is_better = False, needs_proba = True),
                        refit = True, cv = 4)
-    trained_clf = clf.fit(X,y)
-    pickle.dump(trained_clf, open("trainedclassifier.p", "wb"))
+    trained_clf = clf.fit(X, y)
 
     # CV plot
     scores = [-1*x[1] for x in trained_clf.grid_scores_]
@@ -95,10 +93,12 @@ if __name__ == "__main__":
     plt.colorbar()
     plt.xticks(np.arange(len(n_estimators_range)), n_estimators_range, rotation=0)
     plt.yticks(np.arange(len(max_features_range)), max_features_range)
-    plt.figtext(.5,.98,'4-Fold CV Accuracy', fontsize = 25, ha = 'center')
-    plt.figtext(.5,.96, "Best Performance:" + str(-1*trained_clf.best_score_), fontsize = 15, ha = 'center')
-    plt.figtext(.5,.94, "Best Parameters:" + str(trained_clf.best_params_), fontsize = 15, ha = 'center')
+    plt.figtext(.5,.96,'4-Fold CV Accuracy', fontsize = 25, ha = 'center')
+    plt.figtext(.5,.94, "Best Performance:" + str(-1*trained_clf.best_score_), fontsize = 15, ha = 'center')
+    plt.figtext(.5,.92, "Best Parameters:" + str(trained_clf.best_params_), fontsize = 15, ha = 'center')
     plt.savefig("CV_plot.png")
+
+    #pickle.dump(trained_clf.best_estimator_, open("trainedclassifier.p", "wb"))
 
     X_test = []
     with open(os.getcwd() + '/test.csv', 'r') as csvfile:
@@ -108,20 +108,19 @@ if __name__ == "__main__":
             if i == 0:
                 pass
             else:
-                if i < 101:
-                    date = re.search("([0-9]{4})-([0-9]{2})-([0-9]{2})", row[1]).groups()
-                    # date is of the form [year, month, day]
-                    date = [int(x) for x in date]
-                    time = re.search("([0-9]{2}):([0-9]{2}):([0-9]{2})", row[1]).groups()
-                    # time is of the form [hour, minute, second]
-                    time = [int(x) for x in time]
-                    dayofweek_string = row[2]
-                    pddistrict_string = row[3]
-                    longitude = float(row[5])
-                    latitude = float(row[6])
-                    X_row = date + time + [longitude, latitude, \
-                        dayofweek_string, pddistrict_string]
-                    X_test.append(X_row)
+                date = re.search("([0-9]{4})-([0-9]{2})-([0-9]{2})", row[1]).groups()
+                # date is of the form [year, month, day]
+                date = [int(x) for x in date]
+                time = re.search("([0-9]{2}):([0-9]{2}):([0-9]{2})", row[1]).groups()
+                # time is of the form [hour, minute, second]
+                time = [int(x) for x in time]
+                dayofweek_string = row[2]
+                pddistrict_string = row[3]
+                longitude = float(row[5])
+                latitude = float(row[6])
+                X_row = date + time + [longitude, latitude, \
+                    dayofweek_string, pddistrict_string]
+                X_test.append(X_row)
 
     # one-hot encoding for dayofweek and pddistrict vars from existing dicts
     for i, row in enumerate(X_test):
@@ -139,11 +138,10 @@ if __name__ == "__main__":
             encoded_pddistrict[0] = 1
         X_test[i] = row[:-2] + encoded_dayofweek + encoded_pddistrict
 
-    num_classes = len(trained_clf.best_estimator_.classes_)
+    num_classes = trained_clf.best_estimator_.n_classes_
     predicted_probas = trained_clf.predict_proba(X_test)
     with open(os.getcwd() + '/submit.csv', 'w') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["Id"] + sorted(category_set))
-        for i in range(len(predicted_probas[0])):
-            pred = [predicted_probas[x][i][1] for x in range(num_classes)]
-            writer.writerow([i] + pred)
+        for i, prediction in enumerate(predicted_probas):
+            writer.writerow([i] + prediction.tolist())
