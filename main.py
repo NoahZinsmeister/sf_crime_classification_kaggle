@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import make_scorer, log_loss
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.grid_search import GridSearchCV
-from sklearn.preprocessing import label_binarize
 
 if __name__ == "__main__":
     # create a matrix of features (X) and a vector of class labels (y)
@@ -16,17 +15,14 @@ if __name__ == "__main__":
     with open(os.getcwd() + '/train.csv', 'r') as csvfile:
         reader = csv.reader(csvfile)
         for i, row in enumerate(reader):
-            # skip header
             if i == 0:
                 pass
             else:
                 date = re.search("([0-9]{4})-([0-9]{2})-([0-9]{2})",
                                  row[0]).groups()
-                # date is of the form [year, month, day]
                 date = [int(x) for x in date]
                 time = re.search("([0-9]{2}):([0-9]{2}):([0-9]{2})",
                                  row[0]).groups()
-                # time is of the form [hour, minute, second]
                 time = [int(x) for x in time]
                 category_string = row[1]
                 dayofweek_string = row[3]
@@ -66,23 +62,23 @@ if __name__ == "__main__":
     num_unique_category = len(category_dict)
     for i, label in enumerate(y):
         y[i] = category_dict[label]
-    #y = label_binarize(y, classes = list(range(num_unique_category)))
 
-    # ranges for cross validation parameters
-    #n_estimators_range = [i for i in range(10,331,40)]
-    #max_features_range = [i for i in range(2,11,2)]
+    # ranges for cross validation parameters (I know this is only 1
+    # combination, checking more would require more than my 8GB RAM :/
     n_estimators_range = [i for i in range(20,22,40)]
     max_features_range = [i for i in range(3,5,2)]
 
-    # does CV and pickles the final model trained with best parameters
+    # does CV and fits the best model
     param_grid = {'n_estimators': n_estimators_range, 'max_features':
                   max_features_range}
     rfc = RandomForestClassifier(random_state = 2, n_jobs = -1)
     clf = GridSearchCV(rfc, param_grid = param_grid, scoring = make_scorer(log_loss, greater_is_better = False, needs_proba = True),
                        refit = True, cv = 4)
     trained_clf = clf.fit(X, y)
-
-    # CV plot
+    # you can pickle the best CV estimator if you want
+    #pickle.dump(trained_clf.best_estimator_, open("trainedclassifier.p", "wb"))
+    
+    # plot a CV log loss plot
     scores = [-1*x[1] for x in trained_clf.grid_scores_]
     scores = np.array(scores).reshape(len(max_features_range), 
                                       len(n_estimators_range))
@@ -98,13 +94,11 @@ if __name__ == "__main__":
     plt.figtext(.5,.92, "Best Parameters:" + str(trained_clf.best_params_), fontsize = 15, ha = 'center')
     plt.savefig("CV_plot.png")
 
-    #pickle.dump(trained_clf.best_estimator_, open("trainedclassifier.p", "wb"))
-
+    # create a matrix of features (X_test) for unlabeled test data
     X_test = []
     with open(os.getcwd() + '/test.csv', 'r') as csvfile:
         reader = csv.reader(csvfile)
         for i, row in enumerate(reader):
-            # skip header
             if i == 0:
                 pass
             else:
@@ -122,7 +116,7 @@ if __name__ == "__main__":
                     dayofweek_string, pddistrict_string]
                 X_test.append(X_row)
 
-    # one-hot encoding for dayofweek and pddistrict vars from existing dicts
+    # one-hot encoding from existing dicts
     for i, row in enumerate(X_test):
         encoded_dayofweek = [0]*num_unique_dayofweek
         encoded_pddistrict = [0]*num_unique_pddistrict
@@ -138,6 +132,7 @@ if __name__ == "__main__":
             encoded_pddistrict[0] = 1
         X_test[i] = row[:-2] + encoded_dayofweek + encoded_pddistrict
 
+    # write predicted probabilities to file
     num_classes = trained_clf.best_estimator_.n_classes_
     predicted_probas = trained_clf.predict_proba(X_test)
     with open(os.getcwd() + '/submit.csv', 'w') as csvfile:
